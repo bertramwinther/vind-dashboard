@@ -16,7 +16,7 @@ og analyserer vindproduktionen.
 ## Planlagt
 - Dashboard med grafer (Streamlit)
 - Automatisk opdatering af data
-- Mulighed for at stille spørgsmål til dataene på dansk med AI
+- Mulighed for at stille spørgsmål til dataene med AI
 
 ## Datakilde
-Kilde: Energinet (www.energidataservice.dk), licens CC BY 4.0.
+Kilde: Energinet (www.energidataservice.dk)
