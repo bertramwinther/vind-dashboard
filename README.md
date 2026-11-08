@@ -10,7 +10,7 @@ og analyserer vindproduktionen.
 
 ## Fund (oktober 2026)
 - De tre blæsende dage var 25.-27. oktober. Den 26. oktober var højest med ca. 130.000 MWh.
-- Den 31. oktober er kun delvist med, fordi Energinet først udsender afregnede data efter ca. 8 dage. Dagen er udeladt fra analyserne.
+- Den 31. oktober er kun delvist med, fordi Energinet først udsender data efter ca. 8 dage. Dagen er udeladt fra analyserne.
 - Den 25. oktober har 25 timer på grund af skiftet til vintertid, så analysen regner også gennemsnit pr. time.
 
 ## Planlagt
