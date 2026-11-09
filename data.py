@@ -115,12 +115,7 @@ def vind(raekke):
 # ---------------------------------------------------------------------------
 
 def forbrug_hele_dk(raekke):
-    """Beregnet forbrug i MW for hele Danmark (PowerSystemRightNow).
-
-    Læg sammen: ProductionGe100MW, ProductionLt100MW, OffshoreWindPower,
-    OnshoreWindPower, SolarPower og Exchange_Sum.
-    Træk fra: Exchange_Bornholm_SE.
-    """
+    """Beregnet forbrug i MW for hele Danmark (PowerSystemRightNow)."""
     return (
         tal(raekke, "ProductionGe100MW")
         + tal(raekke, "ProductionLt100MW")
@@ -132,13 +127,7 @@ def forbrug_hele_dk(raekke):
     )
 
 def forbrug_omraade(raekke):
-    """Beregnet forbrug i MW for DK1 eller DK2 (ElectricityProdex5MinRealtime).
-
-    Læg sammen: ProductionLt100MW, ProductionGe100MW, OffshoreWindPower,
-    OnshoreWindPower, SolarPower, ExchangeGreatBelt, ExchangeGermany,
-    ExchangeNetherlands, ExchangeGreatBritain, ExchangeNorway og ExchangeSweden.
-    BornholmSE4 skal ikke med.
-    """
+    """Beregnet forbrug i MW for DK1 eller DK2 (ElectricityProdex5MinRealtime)."""
     return (
         tal(raekke, "ProductionLt100MW")
         + tal(raekke, "ProductionGe100MW")
