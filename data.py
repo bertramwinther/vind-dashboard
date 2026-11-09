@@ -1,12 +1,19 @@
 """Henter live-tal fra Energi Data Service uden at overskride rate limits."""
 
+import sqlite3
 import threading
 import time
 
 import requests
 import streamlit as st
 
+from hent_data import DB_FIL, opdater_database
+
 API_URL = "https://api.energidataservice.dk/dataset/"
+
+# Afregnede tal ændrer sig sjældent, så de hentes højst to gange i døgnet.
+DATABASE_MAKS_ALDER = 12 * 60 * 60
+VENT_EFTER_FEJL = 5 * 60
 
 # Hvor ofte hver kilde må hentes, styres af "interval" (sekunder).
 KILDER = {
@@ -34,6 +41,14 @@ def _lager():
     }
 
 
+def _vent_sekunder(svar, standard):
+    """Læser hvor længe API'et beder os vente (Retry-After) ved svar 429."""
+    try:
+        return max(int(svar.headers.get("Retry-After", standard)), 1)
+    except ValueError:
+        return standard
+
+
 def _hent_fra_api(kilde):
     """Laver selve kaldet. Returnerer (rækker, fejl, sekunder til næste kald)."""
     try:
@@ -46,12 +61,7 @@ def _hent_fra_api(kilde):
         return None, "Kunne ikke kontakte Energi Data Service", kilde["interval"]
 
     if svar.status_code == 429:
-        # API'et fortæller selv, hvor længe vi skal vente.
-        try:
-            vent = int(svar.headers.get("Retry-After", kilde["interval"]))
-        except ValueError:
-            vent = kilde["interval"]
-        return None, "For mange kald lige nu (rate limit)", max(vent, 1)
+        return None, "For mange kald lige nu (rate limit)", _vent_sekunder(svar, kilde["interval"])
 
     if svar.status_code != 200:
         return None, f"API-fejl {svar.status_code}", kilde["interval"]
@@ -97,6 +107,35 @@ def seneste_omraade(omraade):
             raekke = r  # Rækkerne er sorteret med nyeste først.
             break
     return {"raekke": raekke, "hentet": svar["hentet"], "fejl": svar["fejl"]}
+
+
+@st.cache_resource
+def _database_lager():
+    return {"lock": threading.Lock(), "naeste_forsoeg": 0, "fejl": None}
+
+
+def sikr_database():
+    """Henter afregnede tal, hvis vind.db mangler eller er for gammel.
+
+    Returnerer en fejltekst, hvis det ikke lykkedes, ellers None.
+    """
+    lager = _database_lager()
+    with lager["lock"]:  # Kun én besøgende ad gangen må hente.
+        if DB_FIL.exists() and time.time() - DB_FIL.stat().st_mtime < DATABASE_MAKS_ALDER:
+            lager["fejl"] = None
+        elif time.time() >= lager["naeste_forsoeg"]:
+            try:
+                opdater_database()
+                lager["fejl"] = None
+            except (requests.RequestException, ValueError, KeyError, OSError, sqlite3.Error) as fejl:
+                vent = VENT_EFTER_FEJL
+                lager["fejl"] = "Kunne ikke hente de afregnede tal"
+                svar = getattr(fejl, "response", None)
+                if svar is not None and svar.status_code == 429:
+                    vent = _vent_sekunder(svar, VENT_EFTER_FEJL)
+                    lager["fejl"] = "For mange kald efter de afregnede tal lige nu (rate limit)"
+                lager["naeste_forsoeg"] = time.time() + vent
+        return lager["fejl"]
 
 
 def tal(raekke, kolonne):

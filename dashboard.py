@@ -1,10 +1,12 @@
 import sqlite3
+from contextlib import closing
 from datetime import date
 
 import pandas as pd
 import streamlit as st
 
 import data
+from hent_data import DB_FIL
 
 st.set_page_config(page_title="Dansk vindkraft")
 st.title("Dansk vindkraft")
@@ -61,16 +63,41 @@ vis_live(omraade)
 st.subheader("Vind pr. dag")
 st.caption("Afregnede tal. De kommer ca. 9 dage efter, så de nyeste dage mangler.")
 
-conn = sqlite3.connect("vind.db")
+with st.spinner("Henter afregnede tal ..."):
+    db_fejl = data.sikr_database()
+
+
+# Prøver selv igen, så siden kommer op uden at brugeren skal genindlæse den.
+@st.fragment(run_every="30s")
+def vent_paa_database():
+    fejl = data.sikr_database()
+    if fejl is None:
+        st.rerun()
+    st.info(f"{fejl}. Grafen kommer frem af sig selv, så snart tallene er hentet.")
+
+
+if db_fejl and not DB_FIL.exists():
+    vent_paa_database()
+    st.stop()
+if db_fejl:
+    st.warning(f"{db_fejl}, så grafen viser de senest hentede tal.")
+
+
+def laes_sql(query, params=None):
+    """Kører SQL og lukker forbindelsen igen, så databasen kan opdateres."""
+    with closing(sqlite3.connect(DB_FIL)) as conn:
+        return pd.read_sql(query, conn, params=params)
+
 
 # En hel dag har mindst 23 timer (23 ved sommertid, 25 ved vintertid).
 HELE_DAGE = "HAVING COUNT(DISTINCT HourUTC) >= 23"
 
-foerste, sidste = conn.execute(f"""
-    SELECT MIN(dag), MAX(dag)
+graenser = laes_sql(f"""
+    SELECT MIN(dag) AS foerste, MAX(dag) AS sidste
     FROM (SELECT date(HourDK) AS dag FROM produktion GROUP BY dag {HELE_DAGE})
-""").fetchone()
-foerste, sidste = date.fromisoformat(foerste), date.fromisoformat(sidste)
+""")
+foerste = date.fromisoformat(graenser["foerste"][0])
+sidste = date.fromisoformat(graenser["sidste"][0])
 
 valgt = st.date_input(
     "Periode",
@@ -101,12 +128,10 @@ GROUP BY dag
 ORDER BY dag
 """
 
-df = pd.read_sql(
+df = laes_sql(
     query,
-    conn,
     params={"fra": fra.isoformat(), "til": til.isoformat(), "omraade": omraade},
 )
-conn.close()
 
 if df.empty:
     st.info("Der er ingen hele dage i den valgte periode.")
