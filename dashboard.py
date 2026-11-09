@@ -8,6 +8,9 @@ import streamlit as st
 import data
 from hent_data import DB_FIL
 
+VIND_FARVE = "#3987e5"
+FORBRUG_FARVE = "#d95926"
+
 st.set_page_config(page_title="Dansk vindkraft")
 st.title("Dansk vindkraft")
 
@@ -56,6 +59,19 @@ def vis_live(omraade):
     )
     if svar["fejl"]:
         st.warning(f"Viser de seneste gode tal. {svar['fejl']}.")
+
+    doegn = data.seneste_doegn(omraade)
+    if not doegn.empty:
+        st.subheader("Seneste døgn")
+        st.line_chart(
+            doegn,
+            x="Tid",
+            y=["Forbrug", "Vind"],
+            color=[FORBRUG_FARVE, VIND_FARVE],
+            x_label="Tid",
+            y_label="MW",
+        )
+        st.caption("Foreløbige tal pr. 5 minutter, opdateres hvert 5. minut. Forbruget er beregnet.")
 
 
 vis_live(omraade)
@@ -138,7 +154,7 @@ if df.empty:
     st.stop()
 
 df["dag"] = pd.to_datetime(df["dag"])
-st.line_chart(df, x="dag", y="vind_mwh", x_label="Dato", y_label="Vind (MWh pr. dag)")
+st.line_chart(df, x="dag", y="vind_mwh", color=VIND_FARVE, x_label="Dato", y_label="Vind (MWh pr. dag)")
 st.dataframe(
     df,
     hide_index=True,

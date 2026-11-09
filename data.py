@@ -4,6 +4,7 @@ import sqlite3
 import threading
 import time
 
+import pandas as pd
 import requests
 import streamlit as st
 
@@ -26,7 +27,7 @@ KILDER = {
     "omraader": {
         "datasaet": "ElectricityProdex5MinRealtime",
         "sorter": "Minutes5UTC DESC",
-        "offset": "-PT15M",
+        "offset": "-PT24H",  # Giver både de nyeste tal og grafen for døgnet i ét kald.
         "interval": 300,
     },
 }
@@ -180,6 +181,38 @@ def forbrug_omraade(raekke):
         + tal(raekke, "ExchangeNorway")
         + tal(raekke, "ExchangeSweden")
     )
+
+
+def seneste_doegn(omraade):
+    """Vind og beregnet forbrug pr. 5 minutter det seneste døgn."""
+    raekker = _hent("omraader")["raekker"] or []
+    tabel = pd.DataFrame(
+        [
+            {
+                "UTC": r["Minutes5UTC"],
+                "Tid": r["Minutes5DK"],
+                "PriceArea": r["PriceArea"],
+                "Vind": vind(r),
+                "Forbrug": forbrug_omraade(r),
+            }
+            for r in raekker
+        ],
+        columns=["UTC", "Tid", "PriceArea", "Vind", "Forbrug"],
+    )
+
+    if omraade == "Hele DK":
+        # Som GROUP BY i SQL. Tidspunkter uden både DK1 og DK2 springes over,
+        # ellers ville grafen falde brat, hvis det ene område mangler.
+        tabel = tabel.groupby("UTC").filter(lambda tid: len(tid) == 2)
+        tabel = tabel.groupby("UTC", as_index=False).agg(
+            Tid=("Tid", "first"), Vind=("Vind", "sum"), Forbrug=("Forbrug", "sum")
+        )
+    else:
+        tabel = tabel[tabel["PriceArea"] == omraade]
+
+    tabel = tabel.sort_values("UTC")
+    tabel["Tid"] = pd.to_datetime(tabel["Tid"])
+    return tabel[["Tid", "Vind", "Forbrug"]]
 
 
 def tjek_formler():
